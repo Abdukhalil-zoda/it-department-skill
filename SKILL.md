@@ -2,7 +2,7 @@
 name: it-department-skill
 description: >-
   Orchestrates a software product engineering team across specialized roles (CTO, System Analyst,
-  Architect, Developers, QA, and DevOps). Acts as a Deep Reasoner and Strategic Technical Advisor
+  Architect, Developers, QA, DevOps, Content and Security Reviewers). Acts as a Deep Reasoner and Strategic Technical Advisor
   rather than a blind doer: scores technical feasibility (1-10), issues constructive pushback with
   architectural alternatives, discovers hidden context ("Ask Why"), and enforces the Stubborn Donkey
   Override gate before implementing anti-patterns. Enforces worktree isolation, pre-deploy CI checks,
@@ -11,9 +11,10 @@ description: >-
   (tokens and machine time), and a scheduled usage audit that proposes savings to the CTO. A Content &
   Localization Reviewer checks every user-facing text twice: at task creation and before each release.
   Operating profiles (prototype, pilot, production) size every gate; a session protocol with a lock file
-  guards the vault.
+  guards the vault. An independent, read-only Security Reviewer must pass every diff that touches a security
+  trigger before it is reported done; every role reads the whole ticket and the module cards before it starts.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   repository: https://github.com/Abdukhalil-zoda/it-department-skill
 ---
 
@@ -36,7 +37,7 @@ skill_root/                           # The installed skill package (reusable, s
 ├── assets/                           # Reusable templates (vault-template, config-template)
 ├── agents/                           # Role system prompts & boundaries
 ├── templates/                        # Task, bug, ADR, decision record, QA report, usage-audit prompt,
-│                                     # content-review report templates
+│                                     # content-review report, module card templates
 ├── workflows/                        # Execution runbooks (incl. operating-profiles.md, session-protocol.md,
 │                                     # efficiency-and-usage-audit.md, content-review.md)
 ├── references/                       # Authoritative contracts, lifecycle, Definition of Ready / Done, examples
@@ -53,7 +54,8 @@ skill_root/                           # The installed skill package (reusable, s
 │   │   └── decisions-log.md          # Decisions journal: one D-NNN row per CTO decision
 │   ├── 04-Archive/                   # ZERO-DELETION PERMANENT ARCHIVE
 │   ├── 05-Reports/                   # Usage audits, content inventories and reviews, QA reports (+ .json sidecars)
-│   └── 06-Content/                   # glossary.md, style-guide.md (owned by the Content Reviewer)
+│   ├── 06-Content/                   # glossary.md, style-guide.md (owned by the Content Reviewer)
+│   └── 07-Modules/                   # Module knowledge map: one card per module (templates/module-card.md)
 └── .it-department/                   # Project runtime data & telemetry
     ├── config.json                   # Project configuration, operating profile, delegated authority, efficiency rules
     ├── lock.json                     # Session lock while a writer is active (written by hand, git-ignored)
@@ -86,9 +88,9 @@ pwsh -File "<skill_root>/scripts/validate-project.ps1" -ProjectRoot "<project_ro
 *(Or `./scripts/validate-project.sh "<project_root>"` on Linux/macOS).*
 
 **Guarantees:**
-*   Idempotent: Preserves existing notes, project configurations, and customizations. Never overwrites or deletes project data. Re-running `init-project` on an older project adds the new folders and files (`vault/05-Reports/`, `sessions/_usage/ledger/`, `vault/03-ADR/decisions-log.md`, `.it-department/.gitignore`) without touching anything else; config blocks such as `efficiency` and the `operating_profile` key are reported, not injected (copy them from `assets/config-template.json`; without `operating_profile` the project runs as `production`).
+*   Idempotent: Preserves existing notes, project configurations, and customizations. Never overwrites or deletes project data. Re-running `init-project` on an older project adds the new folders and files (`vault/05-Reports/`, `vault/07-Modules/`, `sessions/_usage/ledger/`, `vault/03-ADR/decisions-log.md`, `.it-department/.gitignore`) without touching anything else; config blocks such as `efficiency` and the `operating_profile` key are reported, not injected (copy them from `assets/config-template.json`; without `operating_profile` the project runs as `production`).
 *   Strict Boundary Checks: Rejects invalid paths, root collisions, or directory traversal before mutating the filesystem.
-*   Vault Lint: when Python 3.8+ is available, `validate-project` runs `scripts/vault_lint.py --no-dashboard-check` (frontmatter, ids vs file names, status vs folder, wikilinks, severity vs `release_blocking`, content intake verdicts) and fails on lint errors; without Python it warns and skips the lint. `validate-project` also checks `operating_profile`, `profile_review` and `documents` when present.
+*   Vault Lint: when Python 3.8+ is available, `validate-project` runs `scripts/vault_lint.py --no-dashboard-check` (frontmatter, ids vs file names, status vs folder, wikilinks, severity vs `release_blocking`, content intake verdicts, module card entry points, roles named in this file vs `agents/`) and fails on lint errors; without Python it warns and skips the lint. `validate-project` also checks `operating_profile`, `profile_review` and `documents` when present.
 *   Fictional examples (such as `SHOP-102`) remain in `references/examples/` and are **never** copied into the project's active backlog.
 
 ### Installing & Updating the Package
@@ -100,7 +102,7 @@ The package is versioned (`VERSION`, `CHANGELOG.md`, `metadata.version` in this 
 | **Claude Code plugin** (CLI, desktop) with its own marketplace | `/plugin marketplace add Abdukhalil-zoda/it-department-skill` then `/plugin install it-department-skill@it-department` (`--scope project` shares it through `.claude/settings.json`) | `claude plugin update it-department-skill@it-department`, or enable auto-update for the marketplace in the `/plugin` panel; `/reload-plugins` loads it |
 | **Git checkout or plain copy** anywhere | `git clone` into the skills folder, or copy the package | `scripts/update-skill.ps1` / `.sh` |
 
-`scripts/update-skill.{ps1,sh}` is the one-step updater for every channel: it detects how the copy was installed, updates it, prints the changelog entries between the old and the new version (their **Migration** notes are the manual steps), then re-runs `init-project` and `validate-project` on the project (`-ProjectRoot` / `--project`, inferred for copies under `.agents/skills` or `.claude/skills`); `-Check` / `--check` only reports whether upstream is newer. The plugin ships the slash commands `/it-department-skill:update-skill`, `/it-department-skill:validate-project` and `/it-department-skill:sync-dashboard`, and exposes the eight role files as sub-agents. `validate-project` prints the installed version.
+`scripts/update-skill.{ps1,sh}` is the one-step updater for every channel: it detects how the copy was installed, updates it, prints the changelog entries between the old and the new version (their **Migration** notes are the manual steps), then re-runs `init-project` and `validate-project` on the project (`-ProjectRoot` / `--project`, inferred for copies under `.agents/skills` or `.claude/skills`); `-Check` / `--check` only reports whether upstream is newer. The plugin ships the slash commands `/it-department-skill:update-skill`, `/it-department-skill:validate-project` and `/it-department-skill:sync-dashboard`, and exposes the nine role files as sub-agents. `validate-project` prints the installed version.
 
 ---
 
@@ -115,6 +117,24 @@ Markdown files in `agents/` define specialized role contexts and boundaries:
 *   [`agents/qa-engineer.md`](./agents/qa-engineer.md) — Acceptance criteria testing, defect logging (`[bug]`), regression.
 *   [`agents/devops-engineer.md`](./agents/devops-engineer.md) — CI/CD automation, pipeline incident triage, secrets boundaries.
 *   [`agents/content-reviewer.md`](./agents/content-reviewer.md) — User-facing text and localization: intake review of every task's strings, pre-release review of the candidate, glossary and style guide, report to the CTO.
+*   [`agents/security-reviewer.md`](./agents/security-reviewer.md) — Independent, read-only review of every diff that touches a security trigger, checked against the code at the head SHA; verdict `PASS` / `PASS-WITH-NOTES` / `BLOCK`.
+
+### Independent Reviews: the Delegation Matrix
+Which reviewer is mandatory, and by when (full matrix and rules: [`workflows/review-qa-and-release.md`](./workflows/review-qa-and-release.md) §4):
+
+| Reviewer | Mandatory when | Verdict |
+| :--- | :--- | :--- |
+| **Peer code reviewer** | `production`: every diff; `pilot`: full-route tasks; otherwise a coordinator diff read | `approved` / `changes-requested` |
+| **Security reviewer** | the diff touches auth or sessions, DB schema or migrations, user data in logs (PII), outbound HTTP, rate limits or quotas, proxy or forwarded headers, secrets or config, payments, file upload or media access; **every profile, every route** | `PASS` / `PASS-WITH-NOTES` / `BLOCK` |
+| **QA, Content reviewer** | every task past `Code-Review`; `content_review: required` and every release candidate (sections 7, 9) | QA and content verdicts |
+
+*   **Before the task is reported done, not before merge:** any hand-off, transition, hand-off note or CTO report that says "done" needs the verdicts first; hotfixes, direct commits and server config changes included.
+*   **The author never reviews its own work** (in sequential mode the review runs in a fresh session or is recorded as not independent). **Reviewers are read-only** and verify against the code at the reviewed SHA, never against the PR or the task text.
+*   **A blocking verdict is never downgraded** to a note or a follow-up: fix, re-review, new verdict. Only the user's Stubborn Donkey override (an `ADR-OVERRIDE` naming the finding) gets past it, and never for a floor.
+
+### Before Work Starts: the Whole Ticket & the Module Map
+*   **Read the whole ticket** before the first edit: the card, its Transition Log and earlier hand-offs, every linked card and ADR; search `01-Tasks`, `02-Bugs` and `04-Archive/Deprecated-Proposals` for duplicates and rejected attempts; run `git branch -a --list '*<ID>*'` and `git worktree list`. A wrong premise is corrected on the card first. Guide: [`workflows/session-protocol.md`](./workflows/session-protocol.md) §1.1 (Definition of Ready item 13).
+*   **Module knowledge map** (`vault/07-Modules/`, one card per module from [`templates/module-card.md`](./templates/module-card.md): purpose, entry points, data, invariants, pitfalls, ADRs and bugs, tests, last verified): read the card before touching the module; update it in the same change when the module's behaviour changes. `scripts/vault_lint.py` warns when a card names a missing entry point (VL015) and fails when this file and `agents/` disagree on the roles (VL016).
 
 ### Subagents vs. Sequential Fallback
 *   **Subagent Mode (Preferred):** When the host provides subagent capabilities (`invoke_subagent`), the coordinator dispatches tasks to isolated subagents with separate context and dedicated worktrees.
@@ -197,8 +217,8 @@ flowchart TD
     T --> WT["2. Create Dedicated Worktree<br/>.it-department/worktrees/<task-id>"]
     WT --> DEV["3. Implementation & Unit Tests (>=80% coverage)"]
     DEV --> CI["4. Pre-Deploy CI Checks in Worktree"]
-    CI --> PR["5. Peer Code Review & PR"]
-    PR -->|Changes Needed (Max 2 retries)| DEV
+    CI --> PR["5. Peer Code Review & PR<br/>+ Security Review when the diff touches a trigger"]
+    PR -->|Changes Needed or BLOCK (Max 2 retries)| DEV
     PR -->|Approved| MERGE_INT["6. Merge to Integration Branch (e.g. development)"]
     MERGE_INT --> DEPLOY_TEST["7. Auto-Deploy to Test Environment"]
     DEPLOY_TEST --> QA["8. QA Acceptance Testing"]
@@ -219,8 +239,9 @@ flowchart TD
 *   **Secrets & Incident Triage:** Mock credentials safe in git; real staging credentials uncommitted; production secrets strictly human-managed. Guide: [`workflows/secrets-and-incidents.md`](./workflows/secrets-and-incidents.md).
 *   **Efficiency Rules & Usage Audit (R1–R5):** one build per fix round, screenshot budget, targeted re-verification, log discipline, shared-host scheduling. Every session exports its token usage with `scripts/usage_ledger.py`; every `efficiency.audit_interval_days` days the strongest model runs `scripts/usage_report.py` and sends the CTO ≤ 5 optimisation proposals (`templates/usage-audit-prompt.md`). Guide: [`workflows/efficiency-and-usage-audit.md`](./workflows/efficiency-and-usage-audit.md).
 *   **Content & Localization Review (two checkpoints):** the Content Reviewer finalizes every user-facing string of a task in every locale before `Ready-For-Dev` and reviews all texts of the release candidate before the CTO gate, with a report to the CTO; `Critical`/`Major` content defects block the release. Guide: [`workflows/content-review.md`](./workflows/content-review.md).
+*   **Independent Reviews & Security Gate:** reviewers are dispatched by the delegation matrix (section 3), never review their own work, stay read-only, verify against the code and never see a blocking verdict downgraded; a diff that touches a security trigger is not done without the Security Reviewer's `PASS` or `PASS-WITH-NOTES` on its head SHA. Guide: [`workflows/review-qa-and-release.md`](./workflows/review-qa-and-release.md) §4.
 *   **Obsidian Integration & Fallback:** Portable MCP configuration with native filesystem fallback. Guide: [`references/mcp-integration.md`](./references/mcp-integration.md).
-*   **Operating Profiles:** `operating_profile` in `config.json` (`prototype` / `pilot` / `production`, absent = `production`) sets the depth of every gate: route sizing, Definition of Ready, review, coverage, QA scope, staging, deploy and "experiment in prod". The floors never move: secrets out of git, a verified backup before destructive operations, migrations and prod experiments, no force-push, archive instead of delete, `delegated_authorities`, the Stubborn Donkey gate, the usage export. Guide: [`workflows/operating-profiles.md`](./workflows/operating-profiles.md).
+*   **Operating Profiles:** `operating_profile` in `config.json` (`prototype` / `pilot` / `production`, absent = `production`) sets the depth of every gate: route sizing, Definition of Ready, review, coverage, QA scope, staging, deploy and "experiment in prod". The floors never move: secrets out of git, a verified backup before destructive operations, migrations and prod experiments, no force-push, archive instead of delete, `delegated_authorities`, the Stubborn Donkey gate, the security review of trigger diffs, the usage export. Guide: [`workflows/operating-profiles.md`](./workflows/operating-profiles.md).
 *   **Session Protocol & Dashboard Automation:** a hand-written lock (`.it-department/lock.json`) names the single writer across concurrent sessions and a hand-off note links them; transition requests are applied by `scripts/apply_transitions.py`, the dashboard is generated by `scripts/dashboard_sync.py` (every ID, report and document clickable; token and audit block) and `scripts/vault_lint.py` catches structural drift. Guides: [`workflows/session-protocol.md`](./workflows/session-protocol.md), [`references/contracts-and-lifecycle.md`](./references/contracts-and-lifecycle.md).
 
 ---
@@ -287,7 +308,7 @@ Five users is not an SLA. The CTO sets `operating_profile` in `<project_root>/.i
 | **Environment & deploy** | no staging; deploy from the integration branch after smoke, DB backup first | no staging (prod with backup may serve as test env); deploy after QA smoke + content verdict, DB backup first, rollback = restore or redeploy, 15-minute watch | staging; immutable candidate SHA, CTO gate, full rollback plan |
 | **"Experiment in prod"** | allowed: backup → change → smoke → watch 15 min → keep or restore | allowed when reversible by restore or redeploy; announce to users only if visible downtime > 5 min | not allowed; use staging |
 
-**Floors no profile relaxes:** secrets never in git; a verified backup before any destructive operation, migration or prod experiment; no force-push or history rewrite on shared branches; archive instead of delete in the vault; `delegated_authorities` always apply (a profile never grants authority); the Stubborn Donkey gate; the usage ledger export.
+**Floors no profile relaxes:** secrets never in git; a verified backup before any destructive operation, migration or prod experiment; no force-push or history rewrite on shared branches; archive instead of delete in the vault; `delegated_authorities` always apply (a profile never grants authority); the Stubborn Donkey gate; the security review of trigger diffs; the usage ledger export.
 
 ### Coordinator duties
 1.  **Name the profile in every brief and gate:** every Task Assignment Contract carries `Profile & Gates: {operating_profile}: {route}, review {required|coordinator}, QA {smoke|targeted|full}, deploy {direct+backup|candidate gate}` ([`workflows/orchestration-and-worktrees.md`](./workflows/orchestration-and-worktrees.md) §2), and every release gate names the profile and the gates it applied.

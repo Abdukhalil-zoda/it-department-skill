@@ -325,6 +325,30 @@ if (Object.prototype.hasOwnProperty.call(cfg, "documents")) {
     }
 }
 
+// Security review hot spots (agents/security-reviewer.md) - optional {trigger_paths: {<trigger id>: [globs]}}
+if (Object.prototype.hasOwnProperty.call(cfg, "security_review")) {
+    const srv = cfg.security_review;
+    const triggerIds = ["auth", "schema", "pii-logging", "outbound-http", "rate-limits", "forwarded-headers", "secrets-config", "payments", "file-upload"];
+    if (srv === null || typeof srv !== "object" || Array.isArray(srv)) {
+        errors.push("security_review must be an object.");
+    } else {
+        for (const k of Object.keys(srv)) {
+            if (k !== "trigger_paths") errors.push("Unknown field security_review." + k + ". Allowed: trigger_paths.");
+        }
+        if (Object.prototype.hasOwnProperty.call(srv, "trigger_paths")) {
+            const tps = srv.trigger_paths;
+            if (tps === null || typeof tps !== "object" || Array.isArray(tps)) {
+                errors.push("security_review.trigger_paths must be an object of trigger id -> array of globs.");
+            } else {
+                for (const [t, globs] of Object.entries(tps)) {
+                    if (!triggerIds.includes(t)) errors.push("Unknown trigger id security_review.trigger_paths." + t + ". Allowed: " + triggerIds.join(", ") + ".");
+                    if (!Array.isArray(globs) || globs.some(g => typeof g !== "string" || !g.trim())) errors.push("security_review.trigger_paths." + t + " must be an array of non-empty glob strings.");
+                }
+            }
+        }
+    }
+}
+
 if (errors.length > 0) {
     console.error(errors.join("\n"));
     process.exit(1);
@@ -559,6 +583,27 @@ if "documents" in cfg:
                 if rel.startswith("..") or rel == ".":
                     errors.append("documents[%d].path (%s) resolves outside project_root" % (i, dp))
 
+# Security review hot spots (agents/security-reviewer.md) - optional {trigger_paths: {<trigger id>: [globs]}}
+if "security_review" in cfg:
+    srv = cfg.get("security_review")
+    trigger_ids = ("auth", "schema", "pii-logging", "outbound-http", "rate-limits", "forwarded-headers", "secrets-config", "payments", "file-upload")
+    if not isinstance(srv, dict):
+        errors.append("security_review must be an object.")
+    else:
+        for sk in srv:
+            if sk != "trigger_paths":
+                errors.append("Unknown field security_review." + sk + ". Allowed: trigger_paths.")
+        if "trigger_paths" in srv:
+            tps = srv.get("trigger_paths")
+            if not isinstance(tps, dict):
+                errors.append("security_review.trigger_paths must be an object of trigger id -> array of globs.")
+            else:
+                for t, globs in tps.items():
+                    if t not in trigger_ids:
+                        errors.append("Unknown trigger id security_review.trigger_paths." + t + ". Allowed: " + ", ".join(trigger_ids) + ".")
+                    if not isinstance(globs, list) or any(not isinstance(g, str) or not g.strip() for g in globs):
+                        errors.append("security_review.trigger_paths." + t + " must be an array of non-empty glob strings.")
+
 if errors:
     print("\n".join(errors), file=sys.stderr)
     sys.exit(1)
@@ -624,6 +669,9 @@ echo "    [PASS] Configured vault, sessions, and worktree directories verified."
 
 if [ ! -f "$RESOLVED_VAULT/03-ADR/decisions-log.md" ]; then
     echo "    [WARN] Missing decisions journal: $RESOLVED_VAULT/03-ADR/decisions-log.md (re-run init-project to add it; row format: templates/decision-record.md)."
+fi
+if [ ! -d "$RESOLVED_VAULT/07-Modules" ]; then
+    echo "    [WARN] Missing module knowledge map: $RESOLVED_VAULT/07-Modules (re-run init-project to add it; card format: templates/module-card.md)."
 fi
 
 # Check for fictional example leakage in configured vault

@@ -1,7 +1,7 @@
 {
   "name": "it-department-skill",
-  "version": "1.2.0",
-  "description": "IT Department: a coordinated software engineering organization (CTO, system analyst, architect, developers, QA, DevOps, content reviewer) with operating profiles, a vault-backed delivery pipeline, a token optimizer and a content & localization reviewer.",
+  "version": "1.3.0",
+  "description": "IT Department: a coordinated software engineering organization (CTO, system analyst, architect, developers, QA, DevOps, content reviewer, security reviewer) with operating profiles, a vault-backed delivery pipeline, independent reviews with a security gate, a module knowledge map, a token optimizer and a content & localization reviewer.",
   "author": {
     "name": "Abdulaziz Abdukhalil-zoda",
     "url": "https://github.com/Abdukhalil-zoda"
@@ -14,6 +14,7 @@
     "obsidian-vault",
     "token-optimizer",
     "localization-review",
+    "security-review",
     "operating-profiles"
   ]
 }

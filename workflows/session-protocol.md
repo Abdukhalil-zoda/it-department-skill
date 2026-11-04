@@ -41,6 +41,31 @@ python3 <skill_root>/scripts/dashboard_sync.py --root <project_root> --check    
 Apply the requests whose evidence checks out (same command without `--dry-run`) and regenerate a stale
 dashboard (without `--check`).
 
+### 1.1 Before work on a task starts: read the whole ticket
+
+The body of a card is written before anyone has investigated; the evidence is in its log, its links and the
+attempts before this one. Every role that picks up a task or a bug (the analyst at intake, a developer, a
+reviewer, QA) does this before its first edit, and the analyst records the result in §2 of the card
+(*Prior work checked*, Definition of Ready item 13):
+
+1.  **Read the card whole:** frontmatter, every section, the `## 10. Transition Log`, and the `handoff.md` and
+    review files earlier sessions left under `<sessions>/<ID>/`.
+2.  **Follow every link:** each `[[wikilink]]` and `docs:` entry, every linked card and ADR, the notes that link
+    back to the ID, the decisions journal rows that name it, and the module cards (`<vault>/07-Modules/`) of the
+    modules in scope.
+3.  **Search for duplicates, rejected attempts and work in flight:**
+    ```bash
+    grep -rliE "<ID>|<keyword>" <vault>/01-Tasks <vault>/02-Bugs <vault>/04-Archive/Deprecated-Proposals   # duplicates, rejected attempts, back-links
+    git -C <repository_root> branch -a --list "*<ID>*"                                                     # an earlier or parallel attempt
+    git -C <repository_root> worktree list                                                                 # a worktree that already holds it
+    ```
+    In PowerShell: `Get-ChildItem <vault>\01-Tasks, <vault>\02-Bugs, <vault>\04-Archive\Deprecated-Proposals -Recurse -Filter *.md | Select-String -Pattern '<ID>|<keyword>' -List`.
+4.  **A wrong premise is corrected first.** If the bug is already fixed, the approach was rejected before,
+    another card owns the work, or a file, table or endpoint the card names does not exist, the card is fixed
+    before anything else: the lock holder edits it and says why in the Transition Log; a contributor stops with
+    outcome `blocked`, writes the correction and its evidence into `handoff.md`, and the lock holder fixes the
+    card before dispatching again. Nobody builds on a premise they have shown to be false.
+
 ---
 
 ## 2. The lock file: `.it-department/lock.json`
@@ -100,6 +125,7 @@ session that cannot see the lock file) works as a contributor:
 | new bug notes in `<vault>/02-Bugs/` (QA, content reviewer) | the decisions journal, ADR status |
 | its own report files in `<vault>/05-Reports/` (usage audit, content review, QA report) and role-owned files (`06-Content/` for the content reviewer) | `lock.json` (except a takeover under section 2) and `latest.md` (except one `TAKEOVER` or `CONFLICT` line) |
 | its own usage ledger export | another session's worktree or session directory |
+| the module cards (`<vault>/07-Modules/`) of the modules its diff changes, in the same branch as the code | module cards of modules it did not change |
 
 Transition requests are the contributor's voice: the lock holder applies them with `scripts/apply_transitions.py`,
 which checks that the note's status still equals `from_status` and refuses stale or illegal requests with a reason.

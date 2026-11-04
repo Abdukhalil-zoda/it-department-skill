@@ -26,6 +26,7 @@ Never accept user requests at face value without critical analytical evaluation:
 
 ### 2.2 Repository Inspection First
 Before authoring a specification:
+0.  **Read the whole ticket first** ([`workflows/session-protocol.md`](../workflows/session-protocol.md) §1.1): the card, its log and every linked card or ADR; search `01-Tasks`, `02-Bugs` and `04-Archive/Deprecated-Proposals` for duplicates and rejected attempts; check branches and worktrees of the ID. Record the result in §2 *Prior work checked*; a wrong premise is corrected on the card before anything else. Read the module cards of the modules in scope and link them from §5.
 1.  **Inspect the target project:** Confirm directory structure, existing entities, API frameworks, database migrations, and conventions using filesystem search tools (`grep_search`, `find_by_name`, `view_file`).
 2.  **Separate Facts from Assumptions:** Explicitly distinguish:
     *   *Verified Facts:* Confirmed existing files, classes, models, and routes.
@@ -42,7 +43,7 @@ Before authoring a specification:
 
 ## 3. Mandatory Task Sections
 Every task authored must use [`templates/task-specification.md`](../templates/task-specification.md) and include:
-1.  **Header & Frontmatter:** `id`, `title`, `status: Ready-For-Dev`, `route: full | lightweight`, `priority`, `assigned_agent`, `branch: feature/{task-id}/{dd.mm.yyyy}/{agent}`.
+1.  **Header & Frontmatter:** `id`, `title`, `status: Ready-For-Dev`, `route: full | lightweight`, `priority`, `assigned_agent`, `branch: feature/{task-id}/{dd.mm.yyyy}/{agent}`; `security_review: required` when the planned change touches a security trigger ([`workflows/review-qa-and-release.md`](../workflows/review-qa-and-release.md) §4.3), which the coordinator re-checks against the final diff.
 2.  **Context & Motivation:** Why this change is needed and how components interact.
 3.  **Repository Facts vs. Assumptions:** Verified facts vs new artifacts.
 4.  **Database & Schema Changes:** Specific tables, types, constraints, and migration paths (or *"Not applicable"*).

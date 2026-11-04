@@ -17,5 +17,6 @@ upward from the current working directory that contains `.it-department/config.j
 3. Report every `[WARN]`, every failure and every lint finding grouped by cause, each with the concrete fix:
    a missing folder → re-run `init-project`; a config contract error → the key and the allowed values
    (`assets/project-config.schema.json`); a lint code → the note path and the field or folder to change
-   (`references/definition-of-ready-done.md`). End with the overall verdict and the installed skill version
-   printed by the validator.
+   (`references/definition-of-ready-done.md`); `VL015` → fix the module card's `entry_points` or the path;
+   `VL016` → the skill copy itself is out of sync (roles in `SKILL.md` vs `agents/`): update or reinstall it.
+   End with the overall verdict and the installed skill version printed by the validator.

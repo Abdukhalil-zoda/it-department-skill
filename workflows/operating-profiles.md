@@ -90,6 +90,8 @@ flowchart LR
 *   Archive instead of delete in the vault.
 *   `delegated_authorities` always apply: a profile never grants authority ([`cto-and-authority.md`](./cto-and-authority.md) §3).
 *   The Stubborn Donkey gate stays ([`deep-reasoning-and-override.md`](./deep-reasoning-and-override.md)).
+*   An independent security review of every diff that touches a security trigger, before the change is reported
+    done; a `BLOCK` is never downgraded ([`review-qa-and-release.md`](./review-qa-and-release.md) §4).
 *   The usage ledger export stays ([`efficiency-and-usage-audit.md`](./efficiency-and-usage-audit.md) §3).
 
 ---

@@ -40,7 +40,7 @@ flowchart TD
 | **`Ready-For-Dev`** | `<vault>/01-Tasks/Ready-For-Dev/` | System Analyst / Tech Lead | Passes **Definition of Ready (DoR)** checklist ([`definition-of-ready-done.md`](./definition-of-ready-done.md)). If advisory pushback occurred, resolved alternative or ADR-OVERRIDE confirmed. Tasks with `content_review: required` carry `content_review_intake: approved` (content review Checkpoint A). Initial state for Lightweight route. |
 | **`In-Development`** | `<vault>/01-Tasks/In-Development/` | Assigned Developer | Isolated worktree created; branch checked out; `assigned_agent` set. |
 | **`Code-Review`** | `<vault>/01-Tasks/Code-Review/` | Assigned Developer | Pre-deploy CI passed (lint, typecheck, unit tests); PR opened; diff ready. |
-| **`QA-Testing`** | `<vault>/01-Tasks/QA-Testing/` | Reviewer / Coordinator | Peer review signed off; merged into integration branch; deployed to test env. |
+| **`QA-Testing`** | `<vault>/01-Tasks/QA-Testing/` | Reviewer / Coordinator | Peer review signed off; security verdict `PASS` or `PASS-WITH-NOTES` when the diff touches a security trigger ([`workflows/review-qa-and-release.md`](../workflows/review-qa-and-release.md) §4); merged into integration branch; deployed to test env. |
 | **`Ready-For-Release`** | `<vault>/01-Tasks/Ready-For-Release/` | QA Engineer | All acceptance criteria verified; zero open blocking defects (`Critical`/`Major`); pre-release content review verdict `approved` or `approved-with-deferrals` attached to the candidate SHA (content review Checkpoint B). |
 | **`Archived`** | `<vault>/04-Archive/Completed-Tasks/` | DevOps / Release Coordinator | **Confirmed production deployment** with immutable commit SHA and release tag. |
 
@@ -95,6 +95,7 @@ All path resolution is relative to `<project_root>`:
 9.  **Lock & Hand-off:** `<project_root>/.it-department/lock.json` (session lock: written by hand, git-ignored, never committed) and `<project_root>/.it-department/sessions/_handoff/` (`latest.md`, versioned, plus dated copies `<YYYY-MM-DD>-<session_id>.md`, git-ignored). Fixed locations; rules in [`workflows/session-protocol.md`](../workflows/session-protocol.md).
 10. **Decisions Journal:** `<project_root>/${paths.vault_relative_path}/03-ADR/decisions-log.md`: one `D-NNN` row per CTO decision (format `templates/decision-record.md`); decisions that need an ADR stay ADR notes in `03-ADR/`.
 11. **QA Reports:** task level `qa-report.md` in the QA session directory; release level `<vault>/05-Reports/qa-report-<date>-<sha7>.md` (template `templates/qa-report.md`).
+12. **Module Cards & Security Reviews:** `<project_root>/${paths.vault_relative_path}/07-Modules/MOD-<module>.md` (template `templates/module-card.md`; `entry_points` relative to `<project_root>`); `security-review.md` in the security reviewer's session directory.
 
 ### Multi-Repo & Worktree Isolation Formula
 To support both single-repository workspaces and multi-repository mono-workspaces without naming collisions:
@@ -122,7 +123,7 @@ To eliminate race conditions, file corruption, and duplicate task claims:
 1.  **Single Writer Rule:**
     *   The **Coordinator** is the exclusive writer of shared task notes, note moves between folders, and `<vault>/00-Dashboard.md`.
     *   With several concurrent sessions the writer is the coordinator session that holds `.it-department/lock.json`; every other session works in contributor mode ([`workflows/session-protocol.md`](../workflows/session-protocol.md)).
-    *   Implementation agents (developers, QA, content reviewer, analyst, architect, devops) do **not** directly move notes or overwrite the dashboard. QA and the content reviewer may create new bug notes; roles write their own reports under `05-Reports/` (QA reports, content reviews, usage audits); the content reviewer also owns the files under `06-Content/`.
+    *   Implementation agents (developers, QA, content reviewer, security reviewer, analyst, architect, devops) do **not** directly move notes or overwrite the dashboard. QA, the content reviewer and the security reviewer may create new bug notes; roles write their own reports under `05-Reports/` (QA reports, content reviews, usage audits); the content reviewer also owns the files under `06-Content/`; the author of a change updates the module cards (`07-Modules/`) of the modules it changes, in the same branch as the code.
 2.  **Evidence-Based Transition Requests:**
     *   When an agent completes work, it exports its session usage to the ledger (`scripts/usage_ledger.py`, efficiency guide) and writes its deliverables, test logs (tailed per R4), diff summary, and transition request into its session directory:  
         `<project_root>/.it-department/sessions/<task-id>/<agent-role>/<session-id>/transition-request.json`

@@ -45,6 +45,7 @@ Configuration is resolved from `<project_root>/.it-department/config.json`.
     *   Verify the complete production diff (`git diff <production>...<candidate-sha>`).
     *   Confirm all acceptance criteria passed and zero open `Critical` or `Major` defects exist.
     *   Require the pre-release content review verdict for the same candidate SHA (`approved` or `approved-with-deferrals`, report in `<vault>/05-Reports/`); a `blocked` verdict stops the release like a functional blocker ([`content-reviewer.md`](./content-reviewer.md)).
+    *   Require a `PASS` or `PASS-WITH-NOTES` security verdict for every commit of the production diff that touches a security trigger ([`security-reviewer.md`](./security-reviewer.md)). A `BLOCK` cannot be signed away as a note or a deferral: only a fix and a re-review clear it (or, outside the floors, the user's own Stubborn Donkey override).
     *   Review and sign off on any non-blocking `Minor` defect deferrals, including content deferrals listed in the content review report; decide disputed wording and glossary terms (the CTO owns product wording).
 5.  **Secrets & Security Enforcement:** Ensure production credentials remain 100% human-managed. Reject any commit or PR that exposes real credentials in code or repos.
 6.  **Operating Profile Owner** ([`workflows/operating-profiles.md`](../workflows/operating-profiles.md)):

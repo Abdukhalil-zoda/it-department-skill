@@ -7,7 +7,7 @@ This guide describes the `production` profile. The operating profile in `config.
 *   **`pilot`:** no staging required (production with a backup may serve as the test environment); QA covers the fixed defects plus one smoke path per feature, the full suite runs once before the first wide release and then once per candidate SHA that touches shared flows; deploy after the QA smoke and the content verdict, **DB backup first** (Step 5), rollback = restore the backup or redeploy the previous artifact, 15-minute watch; hotfix = commit on integration, deploy, backfill the task note, plus a QA smoke.
 *   **`prototype`:** QA is the smoke path of the changed feature; deploy directly from the integration branch after the smoke, **DB backup first**; hotfix = commit on integration, deploy, backfill the task note.
 
-The floors hold in every profile: `delegated_authorities` (a direct deploy still needs `allow_deploy_production` or the user's go-ahead), a verified backup before destructive operations and migrations, no force-push.
+The floors hold in every profile: `delegated_authorities` (a direct deploy still needs `allow_deploy_production` or the user's go-ahead), a verified backup before destructive operations and migrations, no force-push. The reviewer rules and the security review of trigger diffs (§4) also hold in every profile; the profile changes only how much a peer review covers.
 
 ---
 
@@ -56,7 +56,7 @@ Inspect all commits and file diffs between the production baseline and candidate
 git -C "<repository_root>" log --oneline "$PRODUCTION_BASELINE_SHA..$RELEASE_CANDIDATE_SHA"
 git -C "<repository_root>" diff --stat "$PRODUCTION_BASELINE_SHA...$RELEASE_CANDIDATE_SHA"
 ```
-*Audit Check:* Verify that every change in this diff is accounted for. Check for unintended commits or configuration changes.
+*Audit Check:* Verify that every change in this diff is accounted for. Check for unintended commits or configuration changes. Every commit in the diff that touches a security trigger (§4.3), including commits pushed outside the sprint plan, needs a `PASS` or `PASS-WITH-NOTES` security verdict before the CTO gate; a commit without one goes to the security reviewer first.
 
 ### Step 3: Attach Evidence to Candidate SHA
 QA test results, security scan outputs, and reviewer approvals are recorded against the exact candidate SHA:
@@ -81,7 +81,7 @@ A `blocked` verdict (open `Critical`/`Major` content defect) stops the release e
     3. Build, environment, or dependency inputs affecting the release artifact change.
 
 ### Step 5: Production Deployment
-Once authorized in accordance with `delegated_authorities` and CTO sign-off (QA verdict **and** content review verdict attached to the same candidate SHA, deferrals signed):
+Once authorized in accordance with `delegated_authorities` and CTO sign-off (QA verdict **and** content review verdict attached to the same candidate SHA, deferrals signed, a security verdict for every trigger diff in it):
 1.  Deploy the built artifact corresponding to `$RELEASE_CANDIDATE_SHA` using the project's deployment mechanism (e.g. CI/CD deploy pipeline, container release).
 2.  Update the production branch ref in Git cleanly via fast-forward merge or release tag:
     ```bash
@@ -138,7 +138,7 @@ This is the `production` hotfix; `prototype` and `pilot` use the short form in �
     git -C "<repository_root>" worktree add -b "hotfix/{task-id}/{dd.mm.yyyy}/dev-backend" \
       "<project_root>/.it-department/worktrees/{task-id}" "$PROD_BRANCH"
     ```
-2.  **Implement & Verify:** Write minimal patch in the worktree. Run pre-deploy tests.
+2.  **Implement & Verify:** Write minimal patch in the worktree. Run pre-deploy tests. A patch that touches a security trigger gets the security review before the deploy; when the CTO rules that the outage cannot wait, the review runs right after it, the hotfix is not reported done until the verdict, and a `BLOCK` reopens it as a `Critical` bug (§4.3).
 3.  **Deploy Hotfix:** Deploy verified artifact and fast-forward `$PROD_BRANCH`.
 4.  **Mandatory Synchronization Back to Integration:**
     *   To prevent regression in the next regular release, the hotfix commit must be synchronized back into `$INT_BRANCH` via a standard pull request:
@@ -146,3 +146,43 @@ This is the `production` hotfix; `prototype` and `pilot` use the short form in �
     git -C "<repository_root>" checkout "$INT_BRANCH"
     git -C "<repository_root>" merge "$PROD_BRANCH"
     ```
+
+---
+
+## 4. Reviewers: Delegation Matrix & Rules
+
+A reviewer nobody dispatches protects nothing. The matrix says, for each kind of change, which reviewer is mandatory and by when; the coordinator reads it literally at every hand-off and names the dispatched reviewers in the brief ([`orchestration-and-worktrees.md`](./orchestration-and-worktrees.md) §2).
+
+### 4.1 Delegation matrix
+
+| Reviewer | Mandatory when | Verdict due before | Verdict | Evidence |
+| :--- | :--- | :--- | :--- | :--- |
+| **Peer code reviewer** (another developer or the architect; the coordinator only where the profile allows a diff read) | `production`: every diff; `pilot`: full-route tasks; otherwise the coordinator reads the diff | the task is reported done (`Code-Review → QA-Testing`) | `approved` / `changes-requested` | `code-review.md` |
+| **Security reviewer** ([`agents/security-reviewer.md`](../agents/security-reviewer.md)) | the diff touches a trigger (§4.3), in **every** profile and on every route: pull request, direct commit, hotfix, config change on a server | the task is reported done; for a candidate, the CTO gate | `PASS` / `PASS-WITH-NOTES` / `BLOCK` | `security-review.md` |
+| **Architect** ([`agents/architect.md`](../agents/architect.md)) | `pilot`: schema, auth, payments, integrations; `production`: every non-trivial trade-off; any new or changed ADR | `Ready-For-Dev` | ADR `Accepted` / `Rejected` | ADR note |
+| **QA engineer** ([`agents/qa-engineer.md`](../agents/qa-engineer.md)) | every task and bug fix past `Code-Review`, at the profile's scope (§0) | `Ready-For-Release` / `Closed` | `passed` / `passed-with-deferrals` / `failed` | `qa-report.md` |
+| **Content reviewer** ([`agents/content-reviewer.md`](../agents/content-reviewer.md)) | `content_review: required` (Checkpoint A); every release candidate (Checkpoint B) | `Ready-For-Dev`; the CTO gate | `approved` / `approved-with-deferrals` / `blocked` | `content-review-*.md` |
+
+Several rows often apply at once: a new table behind an admin screen that also sends a webhook needs the architect, the peer reviewer, the security reviewer (`schema`, `auth`, `outbound-http`), QA and the content reviewer. Reviewers that look at the same SHA run in parallel.
+
+### 4.2 Reviewer rules (every reviewer, every profile)
+
+1.  **Before the task is reported done, not before merge.** The duty is tied to the moment anyone says "done" (a developer's hand-off, the coordinator's transition, the "Done" list of a hand-off note, a report to the CTO), not to a merge that may happen later, somewhere else or never. A change that is never merged through a pull request (a hotfix, a direct commit in `prototype`, a config change on a server) still needs its reviewers.
+2.  **The author never reviews its own work.** Whoever wrote any part of the diff, including a coordinator that patched code itself, is not its reviewer. In sequential mode ([`orchestration-and-worktrees.md`](./orchestration-and-worktrees.md) §1) the review runs in a fresh session that never saw the authoring context; when that is impossible the coordinator records `review: not independent` and the CTO decides. It never presents its own reading as an independent review.
+3.  **Reviewers are read-only.** A reviewer reads, runs targeted checks and writes its own report and session directory (QA, content and security reviewers may also open bug notes). It never edits, commits or pushes the code it reviews; the author applies the findings. A reviewer that fixes what it reviews has become an author, and its verdict no longer counts.
+4.  **Verify against the code, never against the PR or the task text.** The verdict rests on the files at the reviewed SHA, their callers and the config they read. The PR body, commit messages, the task note and the developer's hand-off say where to look; they are never the evidence. A symbol is checked at the definition the call site imports, not at a same-named one elsewhere.
+5.  **A blocking verdict is never downgraded.** A security `BLOCK`, a `changes-requested` review on a defect, or a QA or content `Critical`/`Major` finding stops the task until it is fixed and reviewed again. Nobody rewrites it as a note, a follow-up task or a "known limitation" to move on. The single exception is the user's Stubborn Donkey override with an `ADR-OVERRIDE` that names the finding ([`deep-reasoning-and-override.md`](./deep-reasoning-and-override.md)); it does not exist for a floor ([`operating-profiles.md`](./operating-profiles.md) §3).
+
+### 4.3 Security review: triggers, dispatch, timing
+
+The trigger ids are `auth`, `schema`, `pii-logging`, `outbound-http`, `rate-limits`, `forwarded-headers`, `secrets-config`, `payments` and `file-upload`; what each covers is in [`agents/security-reviewer.md`](../agents/security-reviewer.md) §2 and its checklist in §4.
+
+1.  **Detect.** The developer's `handoff.md` names the triggers its diff touches, or `none`. The coordinator does not take that on trust: it matches the changed files against `security_review.trigger_paths` in `config.json` and reads the diff for behaviour no glob catches (a new log line with an email, a new outbound call):
+    ```bash
+    git -C "<repository_root>" diff --name-only "<base>...<head_sha>"
+    git -C "<repository_root>" diff --name-only "<base>...<head_sha>" -- ':(glob)**/migrations/**' ':(glob)**/.env*'   # globs from trigger_paths
+    ```
+2.  **Dispatch** the security reviewer with the repository, base, head SHA, the triggers found and the task card, in parallel with the peer reviewer.
+3.  **Timing per route:** pull request: between the developer's hand-off and `Code-Review → QA-Testing`; coordinator diff read (`prototype`, lightweight `pilot`): before the change is reported done; hotfix: before the deploy, or right after it when the CTO rules that the outage cannot wait (§3.2); release candidate: every trigger commit of the production diff has a verdict before the CTO gate (§2, Step 2).
+4.  **Verdict.** `PASS` and `PASS-WITH-NOTES` let the task continue; the coordinator files each note as a backlog task or a `Minor`/`Trivial` bug. `BLOCK` sends the task back to `In-Development` through the reviewer's transition request, and rule 5 applies. The verdict names the head SHA: later commits that touch a trigger need a review of the delta.
+5.  **Depth by profile.** The trigger list, the independence rule and the verdict are the same in every profile. In `prototype` the report may be just the checklist rows of the touched triggers and the findings.

@@ -4,30 +4,37 @@
 Part of the IT Department skill (references/definition-of-ready-done.md). Checks the mechanical parts of the
 task, bug, ADR and report contracts (references/contracts-and-lifecycle.md) so that drift is caught before it
 reaches the dashboard, a transition or the release gate. Read-only: it never changes a file.
-validate-project runs it with --no-dashboard-check and fails on errors.
+validate-project runs it with --no-dashboard-check and fails on errors. It also checks that the skill package it
+belongs to is consistent (VL016), so a stale role list fails validation too.
 
 Usage:
   python3 vault_lint.py [--root PROJECT_ROOT] [--format text|json] [--no-dashboard-check] [--strict]
+                        [--skill-root SKILL_ROOT]
 
 Defaults:
-  --root    current directory; reads <root>/.it-department/config.json (paths.vault_relative_path, documents)
-            when present, otherwise the vault is <root>/vault
-  --format  text: one line per finding "<code> <severity> <path>: <message>", then a summary line;
-            json: {"summary": {...}, "findings": [{"code", "severity", "path", "line", "message"}]}
+  --root        current directory; reads <root>/.it-department/config.json (paths.vault_relative_path, documents)
+                when present, otherwise the vault is <root>/vault
+  --format      text: one line per finding "<code> <severity> <path>: <message>", then a summary line;
+                json: {"summary": {...}, "findings": [{"code", "severity", "path", "line", "message"}]}
+  --skill-root  the skill package checked by VL016 (default: the package this script belongs to); the check is
+                skipped when that folder has no SKILL.md
 
 Note types by location: 01-Tasks/** and 04-Archive/Completed-Tasks/ = tasks; 02-Bugs/ and 04-Archive/Resolved-Bugs/
 = bugs; 03-ADR/ (except decisions-log.md) = ADRs; 04-Archive/Deprecated-Proposals/ = tasks (ADR-* files: ADRs);
-content-review*.md and qa-report*.md anywhere in the vault = reports. Every other note is only link-checked.
+07-Modules/** (except README.md) = module cards; content-review*.md and qa-report*.md anywhere in the vault =
+reports. Every other note is only link-checked.
 
 Checks:
-  VL001 error    task, bug, ADR or report without parseable frontmatter (missing or unclosed --- block, a line
-                 that is not "key: value", a duplicate key, a tab used for indentation)
+  VL001 error    task, bug, ADR, module card or report without parseable frontmatter (missing or unclosed ---
+                 block, a line that is not "key: value", a duplicate key, a tab used for indentation)
   VL002 error    required field missing or empty - task: id, title, status, route, priority, assigned_agent,
                  branch, date_created, content_review, content_review_intake (assigned_agent and branch may be
                  empty in Backlog, In-Analysis and Deprecated-Proposals); bug: id, parent_task, title, status,
-                 severity, category, release_blocking; ADR: id, title, status, date; content review report:
-                 checkpoint, scope, verdict, date; QA report: scope, verdict, date
-  VL003 error    id does not match the file name (ATM-029.md <-> id: ATM-029; an ADR file name starts with its id)
+                 severity, category, release_blocking; ADR: id, title, status, date; module card: id, title,
+                 entry_points, date_verified; content review report: checkpoint, scope, verdict, date; QA report:
+                 scope, verdict, date
+  VL003 error    id does not match the file name (ATM-029.md <-> id: ATM-029, MOD-auth.md <-> id: MOD-auth; an
+                 ADR file name starts with its id)
   VL004 error    the same id in more than one note
   VL005 error    task status differs from its folder (archived tasks: Archived); bug status outside the bug
                  lifecycle, or Archived vs 02-Bugs / 04-Archive/Resolved-Bugs mismatch
@@ -45,6 +52,10 @@ Checks:
                  reported as skipped when dashboard_sync.py is not next to this script
   VL013 warning  <vault>/03-ADR/decisions-log.md missing
   VL014 warning  .it-department/lock.json present but expired (or without a readable expires_at)
+  VL015 warning  entry_points path of a module card does not exist (relative to the project root; globs need at
+                 least one match)
+  VL016 error    skill package out of sync: SKILL.md names agents/<role>.md but the file is missing, or an
+                 agents/*.md role file is not named in SKILL.md
 
 --strict reports every warning as an error; the notice that dashboard_sync.py is missing stays a warning.
 Exit codes: 0 no errors, 1 errors found, 2 bad arguments (project root or vault not found).
@@ -53,6 +64,7 @@ Requires Python 3.8+, standard library only.
 import argparse
 import collections
 import datetime
+import glob
 import json
 import os
 import re
@@ -72,11 +84,13 @@ REQUIRED = {
              'content_review', 'content_review_intake'),
     'bug': ('id', 'parent_task', 'title', 'status', 'severity', 'category', 'release_blocking'),
     'adr': ('id', 'title', 'status', 'date'),
+    'module': ('id', 'title', 'entry_points', 'date_verified'),
     'content-review': ('checkpoint', 'scope', 'verdict', 'date'),
     'qa-report': ('scope', 'verdict', 'date'),
 }
-TYPE_LABEL = {'task': 'task', 'bug': 'bug', 'adr': 'ADR', 'content-review': 'content review report',
-              'qa-report': 'QA report'}
+TYPE_LABEL = {'task': 'task', 'bug': 'bug', 'adr': 'ADR', 'module': 'module card',
+              'content-review': 'content review report', 'qa-report': 'QA report'}
+MODULES_DIR = '07-Modules'
 CONTENT_REVIEW_RE = re.compile(r'^content-review(?:-.*)?\.md$', re.I)
 QA_REPORT_RE = re.compile(r'^qa-report(?:-.*)?\.md$', re.I)
 KEY_RE = re.compile(r'(.*?):(?=\s|$)')
@@ -92,6 +106,10 @@ URL_RE = re.compile(r'^[A-Za-z][A-Za-z0-9+.-]*://')
 SKIP_DIRS = {'node_modules'}                # plus every hidden directory (.obsidian, .trash, .git)
 DASHBOARD_SYNC = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard_sync.py')
 DASHBOARD_TIMEOUT_SECONDS = 300
+SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# agents/<role>.md as SKILL.md names it ("./agents/x.md" and "`agents/x.md`"), but not ".agents/..." folders
+ROLE_REF_RE = re.compile(r'(?<![\w.-])agents/([A-Za-z0-9][\w-]*)\.md')
+GLOB_CHARS = re.compile(r'[*?\[]')
 
 
 class SetupError(Exception):
@@ -344,6 +362,8 @@ def classify(parts):
             return 'bug'
         if parts[1] == 'Deprecated-Proposals':
             return 'adr' if name.upper().startswith('ADR-') else 'task'
+    if top == MODULES_DIR:
+        return None if name.lower() == 'readme.md' else 'module'
     if CONTENT_REVIEW_RE.match(name):
         return 'content-review'
     if QA_REPORT_RE.match(name):
@@ -496,7 +516,7 @@ def run_dashboard_check(script, root):
 
 
 # --------------------------------------------------------------------------- lint
-def lint(root, dashboard_check=True, strict=False, dashboard_script=None, now=None):
+def lint(root, dashboard_check=True, strict=False, dashboard_script=None, now=None, skill_root=None):
     """Lint the vault of a project. Returns (findings, summary); raises SetupError when it cannot run."""
     root = os.path.abspath(root)
     if not os.path.isdir(root):
@@ -550,6 +570,8 @@ def lint(root, dashboard_check=True, strict=False, dashboard_script=None, now=No
                 ids.setdefault(nid.casefold(), []).append((shown, nid))
             if kind:
                 lint_typed(add, kind, parts, shown, meta, nid)
+            if kind == 'module':
+                lint_entry_points(add, root, shown, meta)
             lint_docs(add, root, shown, meta)
             lint_dates(add, shown, meta)
 
@@ -585,6 +607,9 @@ def lint(root, dashboard_check=True, strict=False, dashboard_script=None, now=No
     # VL014 - expired lock
     lint_lock(add, root, now)
 
+    # VL016 - the skill package: roles named in SKILL.md vs agents/*.md
+    package_state = lint_package(add, skill_root or SKILL_ROOT)
+
     # VL012 - dashboard freshness
     dashboard_state = 'disabled'
     if dashboard_check:
@@ -617,10 +642,10 @@ def lint(root, dashboard_check=True, strict=False, dashboard_script=None, now=No
         'errors': sum(1 for f in findings if f['severity'] == 'error'),
         'warnings': sum(1 for f in findings if f['severity'] == 'warning'),
         'notes': counts['notes'], 'tasks': counts['task'], 'bugs': counts['bug'], 'adrs': counts['adr'],
-        'reports': counts['content-review'] + counts['qa-report'],
+        'modules': counts['module'], 'reports': counts['content-review'] + counts['qa-report'],
         'by_code': dict(sorted(collections.Counter(f['code'] for f in findings).items())),
         'vault': display(root, vault), 'strict': strict, 'dashboard_check': dashboard_state,
-        'config_error': cfg_error,
+        'package_check': package_state, 'config_error': cfg_error,
     }
     return findings, summary
 
@@ -650,7 +675,7 @@ def lint_typed(add, kind, parts, shown, meta, nid):
 
     # VL003 - id matches the file name
     stem = parts[-1][:-3]
-    if nid and kind in ('task', 'bug'):
+    if nid and kind in ('task', 'bug', 'module'):
         if stem != nid:
             add('VL003', 'error', shown, 'id %s does not match the file name %s' % (nid, parts[-1]))
     elif nid and kind == 'adr':
@@ -719,6 +744,47 @@ def lint_docs(add, root, shown, meta):
                 add('VL010', 'warning', shown, 'docs path %s does not exist (paths are relative to the project root)' % entry.strip())
 
 
+def lint_entry_points(add, root, shown, meta):
+    """VL015 for the entry_points of a module card: files, folders or globs relative to the project root."""
+    value = meta.get('entry_points')
+    entries = value if isinstance(value, list) else ([value] if isinstance(value, str) else [])
+    for entry in entries:
+        if not isinstance(entry, str) or not entry.strip():
+            continue
+        path = entry.strip()
+        if GLOB_CHARS.search(path) and not URL_RE.match(path):
+            found = bool(glob.glob(os.path.join(glob.escape(root), path.replace('\\', '/')), recursive=True))
+        else:
+            found = path_exists(root, path)
+        if not found:
+            add('VL015', 'warning', shown, 'entry point %s does not exist (paths are relative to the project root; '
+                'update the card or the path)' % short(path, 80))
+
+
+def lint_package(add, skill_root):
+    """VL016: roles named in SKILL.md and agents/*.md agree. Returns 'ok', 'failed' or 'skipped'."""
+    skill_md = os.path.join(skill_root, 'SKILL.md')
+    if not os.path.isfile(skill_md):
+        return 'skipped'
+    try:
+        named = set(ROLE_REF_RE.findall(read_text(skill_md)))
+    except OSError as exc:
+        add('VL016', 'error', None, 'skill package: SKILL.md is not readable: %s' % exc)
+        return 'failed'
+    agents_dir = os.path.join(skill_root, 'agents')
+    present = set()
+    if os.path.isdir(agents_dir):
+        present = {f[:-3] for f in os.listdir(agents_dir)
+                   if f.lower().endswith('.md') and f.lower() != 'readme.md' and os.path.isfile(os.path.join(agents_dir, f))}
+    for role in sorted(named - present):
+        add('VL016', 'error', None, 'skill package: SKILL.md names agents/%s.md but the file does not exist '
+            '(add the role file or remove the reference; then update the skill)' % role)
+    for role in sorted(present - named):
+        add('VL016', 'error', None, 'skill package: agents/%s.md is not named in SKILL.md '
+            '(list the role in SKILL.md section 3 or remove the file)' % role)
+    return 'failed' if named ^ present else 'ok'
+
+
 def lint_dates(add, shown, meta):
     """VL011 for date (date, date_*, *_date) and timestamp (*_at, timestamp) fields."""
     for key, value in meta.items():
@@ -767,9 +833,10 @@ def format_finding(f):
 
 
 def summary_line(s):
-    return ('vault_lint: %d error(s), %d warning(s) in %d note(s) (%d tasks, %d bugs, %d ADRs, %d reports) under %s%s; '
-            'dashboard check %s' % (s['errors'], s['warnings'], s['notes'], s['tasks'], s['bugs'], s['adrs'], s['reports'],
-                                    s['vault'], ' [strict]' if s['strict'] else '', s['dashboard_check']))
+    return ('vault_lint: %d error(s), %d warning(s) in %d note(s) (%d tasks, %d bugs, %d ADRs, %d modules, %d reports) '
+            'under %s%s; dashboard check %s; package check %s' % (
+                s['errors'], s['warnings'], s['notes'], s['tasks'], s['bugs'], s['adrs'], s['modules'], s['reports'],
+                s['vault'], ' [strict]' if s['strict'] else '', s['dashboard_check'], s['package_check']))
 
 
 def main(argv=None):
@@ -783,9 +850,12 @@ def main(argv=None):
     ap.add_argument('--format', choices=('text', 'json'), default='text', help='output format (default text)')
     ap.add_argument('--no-dashboard-check', action='store_true', help='do not run dashboard_sync.py --check (VL012)')
     ap.add_argument('--strict', action='store_true', help='report warnings as errors')
+    ap.add_argument('--skill-root', default=SKILL_ROOT,
+                    help='skill package checked by VL016 (default: the package of this script)')
     a = ap.parse_args(argv)
     try:
-        findings, summary = lint(a.root, dashboard_check=not a.no_dashboard_check, strict=a.strict)
+        findings, summary = lint(a.root, dashboard_check=not a.no_dashboard_check, strict=a.strict,
+                                 skill_root=a.skill_root)
     except SetupError as exc:
         print('vault_lint: %s' % exc, file=sys.stderr)
         return 2

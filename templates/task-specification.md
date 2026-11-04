@@ -15,6 +15,7 @@ docs: [] # related documents outside the vault, e.g. ["docs/requirements/spec.md
 qa_status: pending # pending | testing | passed | failed
 content_review: required # required (task adds or changes any user-facing text, localized resource or shipped content) | not-applicable
 content_review_intake: pending # pending | approved | changes-requested | not-applicable  (set by the coordinator from the Content Reviewer's verdict)
+security_review: not-applicable # required (the change touches a security trigger: workflows/review-qa-and-release.md §4.3) | not-applicable; re-checked on the final diff
 cto_approved: false
 tags:
   - task
@@ -32,6 +33,7 @@ tags:
 - **Verified Existing Artifacts:** {Confirmed files, classes, models, or endpoints verified via repository inspection}
 - **Proposed New Artifacts:** {Files, endpoints, or migrations to be created}
 - **Assumptions & Open Questions:** {Working technical assumptions; explicitly list unresolved questions if any}
+- **Prior Work Checked:** {Duplicates, rejected attempts, branches and worktrees found for this ID and its keywords, with links, or "None" (workflows/session-protocol.md §1.1)}
 
 ## 3. Database & Schema Changes
 *(For lightweight or non-database tasks, state: "Not applicable.")*
@@ -51,6 +53,8 @@ Base Route: `{base_path}`
 | `GET` | `/api/v1/...` | `Permission_Key_Name` | Now returns the newly added field Z |
 
 ## 5. Code Locations to Modify
+Module cards in scope (read before the first edit, update in the same change when behaviour changes): [[MOD-{module-slug}]] (or None).
+
 List the exact source code files, classes, interfaces, and methods that the developer must touch:
 - `{Project.Domain}/Entities/{Entity}.cs`: Add property `{Name}`.
 - `{Project.Application}/Features/{Feature}/Commands/{Command}.cs`: Update command mapping.

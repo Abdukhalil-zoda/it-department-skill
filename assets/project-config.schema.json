@@ -306,6 +306,24 @@
         "content_data_sources": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "Globs of JSON data files with per-locale subtrees that ship to users." },
         "exclude": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       }
+    },
+    "security_review": {
+      "type": "object",
+      "description": "Security Reviewer (agents/security-reviewer.md, workflows/review-qa-and-release.md section 4). Optional. The trigger list and the review itself apply in every operating profile; this block only names the project's known hot spots.",
+      "additionalProperties": false,
+      "properties": {
+        "trigger_paths": {
+          "type": "object",
+          "description": "Project-relative globs (git pathspec glob syntax) per trigger id: a changed path that matches one requires the security review. A diff that matches none can still touch a trigger.",
+          "propertyNames": {
+            "enum": ["auth", "schema", "pii-logging", "outbound-http", "rate-limits", "forwarded-headers", "secrets-config", "payments", "file-upload"]
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
     }
   }
 }

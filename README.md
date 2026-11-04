@@ -2,9 +2,9 @@
 
 A reusable skill package that turns an AI coding host (Claude Code, Cowork, Codex, Antigravity or any
 host that can read `SKILL.md`) into a coordinated software engineering department: CTO, System Analyst,
-Architect, Backend / Frontend developers, QA and DevOps roles with explicit boundaries, a delivery pipeline
-with real verification gates, git worktree isolation, a project-local Obsidian vault for telemetry, and a
-**token optimizer** that measures what the department costs and proposes savings every few days.
+Architect, Backend / Frontend developers, QA, DevOps and independent reviewer roles with explicit boundaries,
+a delivery pipeline with real verification gates, git worktree isolation, a project-local Obsidian vault for
+telemetry, and a **token optimizer** that measures what the department costs and proposes savings every few days.
 
 The entry point for the host is [`SKILL.md`](./SKILL.md). This file is the human overview.
 
@@ -13,7 +13,9 @@ The entry point for the host is [`SKILL.md`](./SKILL.md). This file is the human
 | Area | Highlights |
 | :--- | :--- |
 | **Deep reasoning, not blind execution** | Feasibility scoring (1–10), constructive pushback with alternatives, "Ask Why" context discovery, and the Stubborn Donkey Override gate with an `ADR-OVERRIDE` record. |
-| **Roles** | `agents/*.md` — one system prompt per role (CTO, System Analyst, Architect, Backend / Frontend developers, QA, DevOps, Content & Localization Reviewer) with step-by-step SOPs and session-output contracts. |
+| **Roles** | `agents/*.md` — one system prompt per role (CTO, System Analyst, Architect, Backend / Frontend developers, QA, DevOps, Content & Localization Reviewer, Security Reviewer) with step-by-step SOPs and session-output contracts. |
+| **Independent reviews & security gate** | A delegation matrix says which reviewer is mandatory when. Every diff that touches auth, schema, user data in logs, outbound HTTP, rate limits, forwarded headers, secrets or config, payments or uploads gets a read-only Security Reviewer before it is reported done, in every profile: `PASS` / `PASS-WITH-NOTES` / `BLOCK`. Authors never review their own work, reviewers verify against the code, and a `BLOCK` is never downgraded to a note. |
+| **Read the whole ticket & module map** | Before the first edit every role reads the card, its log and links, searches the vault for duplicates and rejected attempts and checks branches and worktrees. One card per module in `vault/07-Modules/` (purpose, entry points, data, invariants, pitfalls, ADRs, tests, last verified) is read before a change and updated with it; the lint warns about stale entry points and fails when `SKILL.md` and `agents/` disagree. |
 | **Content & localization review** | Two checkpoints: every user-facing string finalized in every locale before development, and all texts of the release candidate reviewed before the CTO gate, with an inventory script, glossary, style guide and a report to the CTO. |
 | **Delivery pipeline** | Ready-For-Dev → worktree → tests (≥ 80 % coverage) → CI → peer review → integration merge → QA on an immutable candidate SHA → CTO release gate → production → archive. |
 | **Operating profiles** | `prototype` / `pilot` / `production` in `config.json` sets the depth of every gate (route, Definition of Ready, review, coverage, QA scope, staging, deploy), so a product with five users is not run like one with an SLA; in early profiles "back up the database and work directly in production" is a documented path. Floors never move: secrets out of git, verified backups, no force-push, delegated authorities. |
@@ -28,13 +30,13 @@ The entry point for the host is [`SKILL.md`](./SKILL.md). This file is the human
 SKILL.md                      host entry point: routing, modes, guarantees
 README.md                     this overview
 agents/                       role prompts (cto, system-analyst, architect, backend-dev, frontend-dev, qa-engineer,
-                              devops-engineer, content-reviewer)
+                              devops-engineer, content-reviewer, security-reviewer)
 workflows/                    runbooks: orchestration & worktrees, git branching, review/QA/release, CTO authority,
                               deep reasoning & override, lightweight vs full routes, secrets & incidents,
                               efficiency & usage audit (token optimizer), content review (two checkpoints),
                               operating profiles, session protocol (lock & hand-off)
 templates/                    task specification, bug/defect, ADR, decision record, QA report, usage-audit prompt,
-                              content-review report
+                              content-review report, module card
 references/                   canonical contracts & lifecycle, Definition of Ready / Done, MCP integration,
                               worked example (SHOP-102)
 assets/                       config-template.json, project-config.schema.json, vault-template/
@@ -48,7 +50,7 @@ The package is stateless. All project data lives in the target project:
 ```text
 <project_root>/
 ├── vault/                    00-Dashboard.md (generated), 01-Tasks/<status>/, 02-Bugs/, 03-ADR/ (+ decisions-log.md),
-│                             04-Archive/, 05-Reports/, 06-Content/ (glossary, style guide)
+│                             04-Archive/, 05-Reports/, 06-Content/ (glossary, style guide), 07-Modules/ (module cards)
 └── .it-department/
     ├── config.json           modes, operating profile, delegated authorities, git policy, quality gates, paths,
     │                         documents, efficiency rules, content review
@@ -86,7 +88,7 @@ it, prints the `CHANGELOG.md` entries between the old and the new version, whose
 manual steps (new config keys, a profile decision, lint findings), then re-runs `init-project` (adds new
 folders and files, never overwrites) and `validate-project`. In Claude Code the plugin adds
 `/it-department-skill:update-skill`, `/it-department-skill:validate-project` and `/it-department-skill:sync-dashboard`,
-and exposes the eight role files as sub-agents.
+and exposes the nine role files as sub-agents.
 
 ## Quick start
 
@@ -171,6 +173,7 @@ Full guide: [`workflows/content-review.md`](./workflows/content-review.md).
 
 *   [`SKILL.md`](./SKILL.md) — operating model, modes, the advisory lifecycle, the delivery pipeline.
 *   [`workflows/operating-profiles.md`](./workflows/operating-profiles.md) — which gates apply at which stage of the product.
+*   [`workflows/review-qa-and-release.md`](./workflows/review-qa-and-release.md) §4 — the delegation matrix, reviewer rules and security review triggers.
 *   [`references/contracts-and-lifecycle.md`](./references/contracts-and-lifecycle.md) — statuses, severities, path contracts, single-writer rule.
 *   [`workflows/`](./workflows/) — the runbooks the coordinator follows.
 *   [`references/examples/SHOP-102.md`](./references/examples/SHOP-102.md) — a fully specified example task (never copied into real projects).

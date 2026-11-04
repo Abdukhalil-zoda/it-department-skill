@@ -9,10 +9,11 @@ The Coordinator orchestrates specialized roles according to the host platform's 
 *   Each subagent receives an isolated prompt, its role instructions from `agents/<role>.md`, its dedicated worktree path, and its session output directory.
 *   Independent peer review is genuine: the reviewer subagent inspects the diff in isolation without biased memory from the authoring session.
 *   The Content & Localization Reviewer is dispatched twice: at task intake for specifications with `content_review: required`, and on the frozen release candidate in parallel with QA ([`content-review.md`](./content-review.md)).
+*   The Security Reviewer is dispatched for every diff that touches a security trigger, in parallel with the peer reviewer and on the same head SHA, before the task is reported done. Who reviews what, and the rules every reviewer follows: [`review-qa-and-release.md`](./review-qa-and-release.md) §4.
 
 ### Mode 2: Sequential Execution (Fallback)
 *   If subagents are unavailable or disabled, the coordinator runs roles sequentially within the session.
-*   **Integrity Rule:** The coordinator must explicitly label sequential execution and must **never** fabricate independent peer reviews, fake approvals, or artificial multi-party debates. Review checklists must be evaluated methodically against the diff.
+*   **Integrity Rule:** The coordinator must explicitly label sequential execution and must **never** fabricate independent peer reviews, fake approvals, or artificial multi-party debates. Review checklists must be evaluated methodically against the diff. A diff the coordinator wrote itself is reviewed in a fresh session, or recorded as `review: not independent` for the CTO to decide ([`review-qa-and-release.md`](./review-qa-and-release.md) §4.2).
 
 ### Concurrent Sessions (lock & hand-off)
 *   When more than one session works on the project (a Cowork orchestrator, local CLI sessions, a scheduled audit), only the session holding `.it-department/lock.json` writes shared records and the dashboard; every other session works in contributor mode. Start and end checklists, the lock, the hand-off note and conflict rules: [`session-protocol.md`](./session-protocol.md).
@@ -43,6 +44,8 @@ Every assignment dispatched by the coordinator must contain these explicit field
 - **Efficiency Budget (R1–R5, from config.json `efficiency.rules`):** builds per fix round ≤ {R1}; screenshots per scenario ≤ {R2} at {R2_SCALE} scale; re-verification scope: fixed defects + one smoke path ({R3}); summaries ≤ {R4_LINES} lines, log tails {R4_TAIL} lines, tool results ≤ {R4_TOKENS} tokens; shared-host queue rules ({R5}).
 - **Usage Export:** before hand-off run `python3 {SKILL_ROOT}/scripts/usage_ledger.py --root {PROJECT_ROOT} --role {AGENT_ROLE} --task {TASK_ID}` (cloud sessions: `--out <staging>` + commit the JSON). See [`efficiency-and-usage-audit.md`](./efficiency-and-usage-audit.md).
 - **Content Review:** `content_review: {required | not-applicable}`; intake verdict `{approved | n/a}` ({link to content-review-intake.md}); user-facing strings are taken verbatim from §6 of the task note for every configured locale and never authored by the developer. See [`content-review.md`](./content-review.md).
+- **Before Work:** read the whole ticket and the module cards in scope ({[[MOD-...]] or none}) before the first edit; a wrong premise ends the session as `blocked` with the correction in `handoff.md`. See [`session-protocol.md`](./session-protocol.md) §1.1.
+- **Reviewers & Security Triggers:** reviewers dispatched {peer, security, QA, content}; security triggers expected `{none | auth, schema, ...}`; list the triggers the final diff touches in `handoff.md`; the task is not done before their verdicts. See [`review-qa-and-release.md`](./review-qa-and-release.md) §4.
 ```
 
 ---

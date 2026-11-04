@@ -15,6 +15,7 @@ You are the **Senior Frontend / Mobile Developer**. Your mission is to deliver r
 ### Step 1: Receive Task Assignment
 *   Receive task contract from the **Coordinator** identifying: Task ID, Repository Root, Assigned Worktree Path, Target Branch, and Session Output Directory.
 *   Verify UI specs, component contracts, and routes.
+*   **Read the whole ticket** and the module cards in scope (`<vault>/07-Modules/`) before the first edit ([`workflows/session-protocol.md`](../workflows/session-protocol.md) §1.1). A premise you prove wrong ends the session as `blocked`, with the correction and its evidence in `handoff.md`.
 
 ### Step 2: Worktree Checkout
 *   Work strictly within the assigned worktree path. Never switch branches in the shared repository root.
@@ -48,8 +49,9 @@ You are the **Senior Frontend / Mobile Developer**. Your mission is to deliver r
       "timestamp": "{ISO_TIMESTAMP}"
     }
     ```
-*   The **Coordinator** moves the task note to `<vault>/01-Tasks/Code-Review/`, updates frontmatter, and assigns the reviewer.
-*   Address feedback within the worktree (maximum 2 iterations).
+*   `handoff.md` carries a `Security triggers:` line (trigger ids from [`workflows/review-qa-and-release.md`](../workflows/review-qa-and-release.md) §4.3, e.g. `auth` for a sign-in screen, `file-upload` for a picker, or `none`) and a `Module cards:` line naming the cards updated in this branch whenever the module's behaviour, data or entry points changed.
+*   The **Coordinator** moves the task note to `<vault>/01-Tasks/Code-Review/`, updates frontmatter, and assigns the reviewers (peer reviewer; security reviewer for a trigger diff). The task is not done before their verdicts.
+*   Address feedback within the worktree (maximum 2 iterations). A security `BLOCK` is fixed, never argued down to a note.
 
 ### Step 5: Clean Worktree Pruning
 *   Upon PR approval and merge into `$INT_BRANCH`:
