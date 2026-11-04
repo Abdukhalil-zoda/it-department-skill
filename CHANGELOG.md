@@ -8,6 +8,42 @@ pull request bumps it and tags `v<version>` on `master`. `scripts/update-skill.{
 between the installed and the new version after an update, so the **Migration** notes are what a project
 has to do by hand.
 
+## [1.3.0] - 2026-11-04
+
+### Added
+- Security Reviewer role (`agents/security-reviewer.md`): independent, read-only review of every diff that
+  touches a security trigger (`auth`, `schema`, `pii-logging`, `outbound-http`, `rate-limits`,
+  `forwarded-headers`, `secrets-config`, `payments`, `file-upload`), verified against the code at the head SHA,
+  with a checklist per trigger and the verdict `PASS` / `PASS-WITH-NOTES` / `BLOCK`. Mandatory in every operating
+  profile before the change is reported done; a new floor in `workflows/operating-profiles.md`.
+- Delegation matrix and reviewer rules (`workflows/review-qa-and-release.md` §4, SKILL.md section 3): which
+  reviewer is mandatory when; "before reporting done", not "before merge"; the author never reviews its own
+  work; reviewers are read-only and verify against the code, never the PR or task text; a blocking verdict is
+  never downgraded to a note.
+- "Read the whole ticket" rule (`workflows/session-protocol.md` §1.1, Definition of Ready item 13 and §2.3): the
+  card, its log, every linked card and ADR, a search for duplicates and rejected attempts, branches and
+  worktrees of the ID; a wrong premise is corrected on the card first.
+- Module knowledge map: `templates/module-card.md`, `vault/07-Modules/` (README, created by `init-project`);
+  read the card before touching a module, update it in the same change.
+- `scripts/vault_lint.py`: module cards are typed notes (VL001-VL004); VL015 warns when a card's `entry_points`
+  path does not exist; VL016 fails when SKILL.md and `agents/*.md` disagree on the roles; `--skill-root`;
+  `modules` and `package_check` in the summary.
+- Optional `security_review.trigger_paths` config block (schema, template, both validators); the task template
+  gained `security_review`, *Prior Work Checked* and module card links; `handoff.md` lists security triggers
+  and updated module cards.
+- Credit: these four ideas were inspired by [aiqadam/qadam-flow](https://github.com/aiqadam/qadam-flow) (MIT); the text and its fit to the vault are our own.
+
+### Changed
+- The plugin exposes nine role files as sub-agents; `validate-project` warns when `vault/07-Modules/` is missing;
+  the vault lint summary line names modules and the package check.
+
+### Migration
+- Re-run `init-project` (adds `vault/07-Modules/`); `validate-project` warns until then.
+- Optional: copy the `security_review` block from `assets/config-template.json` and point `trigger_paths` at the
+  project's auth, migration, config and payment folders.
+- From now on dispatch the Security Reviewer for every trigger diff before reporting it done, and add
+  `security_review` to new task notes (existing notes need no change; the lint does not require it).
+
 ## [1.2.0] - 2026-10-07
 
 ### Added

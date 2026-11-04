@@ -387,7 +387,8 @@ class FrontmatterParserTest(unittest.TestCase):
     @unittest.skipUnless(os.path.isdir(TEMPLATES), 'templates/ not available (only scripts/ mounted)')
     def test_skill_templates_parse_with_required_fields(self):
         expected = {'task-specification.md': 'task', 'bug-defect-task.md': 'bug', 'adr-record.md': 'adr',
-                    'content-review-report.md': 'content-review', 'qa-report.md': 'qa-report'}
+                    'content-review-report.md': 'content-review', 'qa-report.md': 'qa-report',
+                    'module-card.md': 'module'}
         for name, kind in expected.items():
             path = os.path.join(TEMPLATES, name)
             if not os.path.isfile(path):
@@ -550,6 +551,106 @@ class CheckCodesTest(LintCase):
         self.assertOnly(self.lint(now=datetime.datetime(2026, 10, 7, 13, 1, tzinfo=datetime.timezone.utc))[0], 'VL014')
 
 
+MODULE_CARD = '''\
+    ---
+    id: MOD-specs
+    title: "Specification module"
+    owner: system-analyst
+    entry_points: # project-relative
+      - "docs/spec.md"
+      - docs
+      - "docs/*.md"
+    tables: []
+    security_triggers: [auth]
+    date_verified: "2026-10-07"
+    verified_commit: "abc1234"
+    tags: [module]
+    ---
+    # MOD-specs: Specification module
+
+    ADR [[ADR-001-sample]], bug [[BUG-001]], task [[T-001]].
+    '''
+
+
+class ModuleCardTest(LintCase):
+    CARD = 'vault/07-Modules/MOD-specs.md'
+
+    def test_clean_card_and_readme(self):
+        self.put(self.CARD, MODULE_CARD)
+        self.put('vault/07-Modules/README.md', '# 07-Modules\nNot a card: no frontmatter needed.\n')
+        findings, summary = self.lint()
+        self.assertEqual(findings, [], '\n'.join(vault_lint.format_finding(f) for f in findings))
+        self.assertEqual((summary['modules'], summary['notes']), (1, 12))
+
+    def test_vl015_missing_entry_points_are_warnings(self):
+        self.put(self.CARD, MODULE_CARD.replace('"docs/spec.md"', '"src/Missing/Service.cs"').replace(
+            '"docs/*.md"', '"src/**/*.none"'))
+        findings, summary = self.lint()
+        self.assertOnly(findings, 'VL015', 'MOD-specs.md: entry point src/Missing/Service.cs does not exist',
+                        'MOD-specs.md: entry point src/**/*.none does not exist')
+        self.assertEqual((summary['errors'], summary['warnings']), (0, 2))
+        self.assertEqual(self.lint(strict=True)[1]['errors'], 2)
+
+    def test_single_string_entry_point(self):
+        self.put(self.CARD, MODULE_CARD.replace('entry_points: # project-relative\n      - "docs/spec.md"\n      - docs\n'
+                                                '      - "docs/*.md"\n', 'entry_points: docs/gone.md\n'))
+        self.assertOnly(self.lint()[0], 'VL015', 'entry point docs/gone.md does not exist')
+
+    def test_vl002_vl003_card_fields_and_id(self):
+        self.put(self.CARD, MODULE_CARD.replace('id: MOD-specs', 'id: MOD-other').replace('    date_verified: "2026-10-07"\n', ''))
+        findings, _ = self.lint()
+        self.assertEqual(codes(findings), ['VL002', 'VL003'])
+        text = '\n'.join(vault_lint.format_finding(f) for f in findings)
+        self.assertIn('missing required field: date_verified', text)
+        self.assertIn('id MOD-other does not match the file name MOD-specs.md', text)
+
+    def test_vl001_card_without_frontmatter(self):
+        self.put('vault/07-Modules/sub/MOD-x.md', '# MOD-x without frontmatter\n')
+        self.assertOnly(self.lint()[0], 'VL001', 'vault/07-Modules/sub/MOD-x.md: no frontmatter: a module card starts')
+
+
+class PackageCheckTest(LintCase):
+    """VL016 on a fixture skill package, and on the real package this test ships with."""
+
+    def package(self, skill_md, roles):
+        root = os.path.join(self.tmp, 'skill')
+        write(root, 'SKILL.md', skill_md)
+        for role in roles:
+            write(root, 'agents/%s.md' % role, '# %s\n' % role)
+        return root
+
+    def test_roles_in_sync(self):
+        skill = self.package('* [`agents/cto.md`](./agents/cto.md)\n* see ../agents/qa.md\n'
+                             '* install into `.agents/skills/it-department-skill/` or .agents/notes.md\n', ['cto', 'qa'])
+        write(skill, 'agents/README.md', '# roles\n')
+        findings, summary = self.lint(skill_root=skill)
+        self.assertEqual(findings, [])
+        self.assertEqual(summary['package_check'], 'ok')
+
+    def test_missing_and_unlisted_role_files_are_errors(self):
+        skill = self.package('* [`agents/cto.md`](./agents/cto.md)\n* `agents/ghost.md`\n', ['cto', 'orphan'])
+        findings, summary = self.lint(skill_root=skill)
+        self.assertOnly(findings, 'VL016', 'VL016 error skill package: SKILL.md names agents/ghost.md but the file does not exist',
+                        'VL016 error skill package: agents/orphan.md is not named in SKILL.md')
+        self.assertEqual((summary['errors'], summary['package_check']), (2, 'failed'))
+
+    def test_no_agents_folder(self):
+        skill = self.package('* `agents/cto.md`\n', [])
+        self.assertOnly(self.lint(skill_root=skill)[0], 'VL016', 'names agents/cto.md but the file does not exist')
+
+    def test_skipped_without_skill_md(self):
+        findings, summary = self.lint(skill_root=os.path.join(self.tmp, 'no-skill'))
+        self.assertEqual(findings, [])
+        self.assertEqual(summary['package_check'], 'skipped')
+
+    @unittest.skipUnless(os.path.isfile(os.path.join(SKILL_ROOT, 'SKILL.md')), 'SKILL.md not available (only scripts/ mounted)')
+    def test_real_skill_package_roles_are_in_sync(self):
+        findings, summary = self.lint()
+        self.assertEqual(summary['package_check'], 'ok', '\n'.join(vault_lint.format_finding(f) for f in findings))
+        named = set(vault_lint.ROLE_REF_RE.findall(vault_lint.read_text(os.path.join(SKILL_ROOT, 'SKILL.md'))))
+        self.assertIn('security-reviewer', named)
+
+
 class DashboardCheckTest(LintCase):
     """VL012 with a stub dashboard_sync.py (the real script is owned by another work package)."""
 
@@ -623,6 +724,15 @@ class CliTest(LintCase):
         self.assertEqual(lines[0], 'VL005 error vault/01-Tasks/Backlog/T-002.md: status In-Development but folder Backlog')
         self.assertEqual(lines[1], 'VL012 warning dashboard check skipped: dashboard_sync.py not found')
         self.assertTrue(lines[-1].startswith('vault_lint: 1 error(s), 1 warning(s)'), lines[-1])
+
+    def test_skill_root_argument_and_summary(self):
+        skill = os.path.join(self.tmp, 'stale-skill')
+        write(skill, 'SKILL.md', '* `agents/cto.md`\n')
+        rc, out, _ = self.run_main('--root', self.root, '--no-dashboard-check', '--skill-root', skill)
+        self.assertEqual(rc, 1)
+        self.assertIn('VL016 error skill package: SKILL.md names agents/cto.md but the file does not exist', out)
+        self.assertIn('0 modules', out)
+        self.assertIn('package check failed', out)
 
     def test_warnings_only_exit_zero_and_strict_exit_one(self):
         self.remove('docs/spec.md')
