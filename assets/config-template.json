@@ -127,5 +127,19 @@
       "**/vault/**",
       "**/*.Designer.cs"
     ]
+  },
+  "security_review": {
+    "trigger_paths": {
+      "schema": [
+        "**/migrations/**",
+        "**/Migrations/**"
+      ],
+      "secrets-config": [
+        "**/.env*",
+        "**/appsettings*.json",
+        "**/docker-compose*.yml",
+        ".github/workflows/**"
+      ]
+    }
   }
 }

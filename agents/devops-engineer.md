@@ -28,6 +28,7 @@ When a build, test, or deployment failure occurs:
 *   **Production Secrets:** Never touch, request, or store production secrets. They are strictly human-managed.
 *   **Real Staging Secrets:** Keep real staging credentials out of git. Inject them via local uncommitted environment files or secret managers.
 *   **Mock Credentials:** Provide safe dummy templates (e.g. `.env.test.example`) with mock strings for unit testing.
+*   **Your changes are trigger diffs too:** CI secrets, env and runtime config, reverse proxy rules and forwarded headers (`secrets-config`, `forwarded-headers`, [`workflows/review-qa-and-release.md`](../workflows/review-qa-and-release.md) §4.3) go to the Security Reviewer before they are reported done, also when they were applied directly on a server. List the triggers in your hand-off.
 
 ### Step 4: Production Deployment & Archival
 *   **Depth by operating profile** ([`workflows/operating-profiles.md`](../workflows/operating-profiles.md)): `production` follows the steps below with the immutable candidate SHA and the CTO gate; `pilot` deploys after the QA smoke and the content verdict, `prototype` directly from the integration branch after a smoke. Authorization is the same in every profile (`allow_deploy_production` or the user's go-ahead).

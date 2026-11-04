@@ -19,7 +19,8 @@ evidence files in its session directory (section 4). The **Coordinator** verifie
 transition: it reads the evidence, rejects stale or incomplete requests and never fills a gap on the author's
 behalf. **`scripts/vault_lint.py`** checks the mechanical parts on every `validate-project` run — required
 frontmatter fields (VL002), id and file name (VL003, VL004), status versus folder (VL005), links (VL006),
-severity versus release blocking (VL007), the content intake verdict past `In-Analysis` (VL008), dates (VL011) —
+severity versus release blocking (VL007), the content intake verdict past `In-Analysis` (VL008), dates (VL011),
+entry points of module cards (VL015) —
 and `scripts/apply_transitions.py` refuses a request whose evidence file, intake verdict, QA status or release
 fields are missing. Judgement items (testable criteria, verified facts, a sound feasibility score) stay with the
 analyst, the reviewer and the CTO.
@@ -33,7 +34,7 @@ with one sentence why; **optional** — may be left out. *"Not applicable."* is 
 section the task does not touch; the profile decides how much detail a touched section needs. **Lint** names the
 `vault_lint.py` check that enforces the mechanical part.
 
-### 2.1 Full route (12 items)
+### 2.1 Full route (13 items)
 
 | # | Item | Template | prototype | pilot | production | Lint |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -49,11 +50,12 @@ section the task does not touch; the profile decides how much detail a touched s
 | 10 | **Feasibility** — score ≥ 8/10 recorded, the advised alternative adopted, or an `ADR-OVERRIDE` linked. | task note / ADR | full | full | full | — |
 | 11 | **Route & priority** — `route: full` and `priority` set; the brief names the profile's gates. | frontmatter | full | full | full | VL002 |
 | 12 | **Assignee & branch** — `assigned_agent` set and `branch` from the formula `feature/{task-id}/{dd.mm.yyyy}/{agent}`. | frontmatter | full | full | full | VL002 |
+| 13 | **Prior work checked** — the whole ticket read (section 2.3): the card, its log, every linked card and ADR; duplicates and rejected attempts searched in `01-Tasks`, `02-Bugs`, `04-Archive/Deprecated-Proposals`; branches and worktrees of the ID checked; result (or *None*) in §2; a wrong premise corrected before anything else; `security_review` set from the trigger list. | §2, frontmatter | full | full | full | — |
 
 A prototype task that changes the schema still meets the backup floor: the migration is applied only after a
 named, restorable backup exists.
 
-### 2.2 Lightweight route (6 items)
+### 2.2 Lightweight route (7 items)
 
 | # | Item | Template | prototype | pilot | production | Lint |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -63,6 +65,21 @@ named, restorable backup exists.
 | 4 | **User-facing content** — strings table in every locale with a short-form intake verdict whenever text changes, or `content_review: not-applicable` with why. | §6 | full | full | full | VL008 |
 | 5 | **Acceptance criteria** — at least one testable criterion plus what must stay unchanged (screen, endpoint, file). | §7 | full | full | full | — |
 | 6 | **Frontmatter** — `route: lightweight`, `priority`, `assigned_agent`, `branch` set; `status: Ready-For-Dev` in `01-Tasks/Ready-For-Dev/`. | frontmatter | full | full | full | VL002, VL005 |
+| 7 | **Prior work checked** — the whole ticket read (section 2.3), duplicates and rejected attempts searched, branches and worktrees of the ID checked; one line in §2 (or *None*). | §2 | full | full | full | — |
+
+### 2.3 Read the whole ticket (every role, before work starts)
+
+Ready is not a one-time stamp: the analyst checks prior work before it sets `Ready-For-Dev`, and every role that
+picks the task up later (developer, reviewer, QA) repeats the check before its first edit. Three questions, with
+the commands in [`workflows/session-protocol.md`](../workflows/session-protocol.md) §1.1:
+1.  **Is everything about this card read?** The whole note including the Transition Log, the hand-offs and
+    reviews under `<sessions>/<ID>/`, every linked card, ADR and `docs:` entry, the module cards in scope.
+2.  **Was this tried, rejected or started before?** Search `01-Tasks`, `02-Bugs` and
+    `04-Archive/Deprecated-Proposals` for the ID and its keywords; list branches (`git branch -a --list '*<ID>*'`)
+    and worktrees (`git worktree list`).
+3.  **Does the premise still hold?** If it does not (already fixed, rejected before, owned by another card, a
+    named file or table missing), the card is corrected first: the lock holder edits it, a contributor stops with
+    outcome `blocked` and the correction in its `handoff.md`.
 
 ---
 
@@ -84,7 +101,8 @@ depth (review, coverage, test environment, QA scope, deploy) follows the matrix 
 | 2 | Pre-deploy checks pass in the worktree: lint, typecheck/compile, tests; coverage gate per profile (`quality_gates.test_coverage_threshold_percent`). | `handoff.md`: commands, pass/fail counts, coverage; log tails within R4 |
 | 3 | User-facing strings are copied verbatim from the approved §6 table into every locale; `scripts/content_inventory.py` shows no missing, empty, placeholder or wrong-script finding for the task's keys (tasks with `content_review: required`). | `handoff.md`: inventory summary line |
 | 4 | Diff summary, known limitations and follow-ups are written; builds per fix round stayed within R1. | `handoff.md` |
-| 5 | Usage ledger exported; transition request `In-Development → Code-Review`. | `transition-request.json` (`evidence_file: handoff.md`) |
+| 5 | The security triggers the diff touches are listed by id ([`review-qa-and-release.md`](../workflows/review-qa-and-release.md) §4.3), or `none`; the module cards of every module whose behaviour changed are updated in the same branch (entry points, invariants, pitfalls, `date_verified`). | `handoff.md`: `Security triggers:` and `Module cards:` lines; card diff |
+| 6 | Usage ledger exported; transition request `In-Development → Code-Review`. | `transition-request.json` (`evidence_file: handoff.md`) |
 
 ### 3.2 `Code-Review` → `QA-Testing` (reviewer, coordinator)
 
@@ -93,7 +111,8 @@ depth (review, coverage, test environment, QA scope, deploy) follows the matrix 
 | 1 | The review verdict on the diff is recorded: approved, or changes requested (at most 2 revision cycles, then CTO escalation). A peer review where the profile requires one; a coordinator diff read where the profile allows it. | `code-review.md` in the reviewer's session directory |
 | 2 | The branch is merged into the integration branch; the merge commit SHA is recorded. | `code-review.md` |
 | 3 | The integration build is deployed to the test environment the profile requires (in `pilot`, production after a verified backup may serve as the test environment). | deploy log tail and backup name in `code-review.md` |
-| 4 | Usage ledger exported; transition request `Code-Review → QA-Testing`. | `transition-request.json` (`evidence_file: code-review.md`) |
+| 4 | A diff that touches a security trigger has a `PASS` or `PASS-WITH-NOTES` verdict on the reviewed head SHA from a security reviewer who did not write it (every profile); a `BLOCK` sends the task back to `In-Development` and is never turned into a note; notes are filed as backlog tasks or `Minor`/`Trivial` bugs. The reviewer also checked that the module cards match the change. | `security-review.md`, linked from `code-review.md` |
+| 5 | Usage ledger exported; transition request `Code-Review → QA-Testing`. | `transition-request.json` (`evidence_file: code-review.md`) |
 
 ### 3.3 `QA-Testing` → `Ready-For-Release` (QA engineer)
 
@@ -111,7 +130,7 @@ depth (review, coverage, test environment, QA scope, deploy) follows the matrix 
 | # | Done when | Evidence |
 | :--- | :--- | :--- |
 | 1 | The CTO release gate passed for the candidate SHA within `delegated_authorities` (a profile never grants authority). | gate decision in `deploy.md`; decisions journal row for deferrals |
-| 2 | The release-level QA report and content review exist for the deployed SHA. | `<vault>/05-Reports/qa-report-<date>-<sha7>.md`, `content-review-<date>-<sha7>.md` |
+| 2 | The release-level QA report and content review exist for the deployed SHA, and every commit of the production diff that touches a security trigger has a `PASS` or `PASS-WITH-NOTES` verdict. | `<vault>/05-Reports/qa-report-<date>-<sha7>.md`, `content-review-<date>-<sha7>.md`, `security-review.md` files |
 | 3 | A named, restorable backup (DB dump, volume snapshot, export) was taken before the deploy wherever the profile or a migration requires it; the rollback path is written down. | `deploy.md`: backup name, rollback step |
 | 4 | The deployed artifact is the candidate SHA; the production branch is fast-forwarded and tagged; health and logs were watched for 15 minutes. | `deploy.md`: deploy log tail, tag, watch result |
 | 5 | The note carries `status: Archived`, `release_version`, `release_commit`, `archived_at`, sits in `04-Archive/Completed-Tasks/`, and the dashboard is regenerated with `scripts/dashboard_sync.py`. | task note (VL005, VL011) |
@@ -138,6 +157,7 @@ A closed bug is archived with its release: section 3.4 items 4–6 apply, and th
 | :--- | :--- | :--- |
 | `handoff.md` | developer | `<sessions>/<task-id>/<dev-role>/<session-id>/` |
 | `code-review.md` | reviewer (peer developer, architect or coordinator) | `<sessions>/<task-id>/<reviewer-role>/<session-id>/` |
+| `security-review.md` | Security Reviewer | `<sessions>/<task-id or RC-sha7>/security-reviewer/<session-id>/` |
 | `qa-report.md` | QA engineer | task level: `<sessions>/<task-id>/qa-engineer/<session-id>/`; release level: `<vault>/05-Reports/qa-report-<date>-<sha7>.md` |
 | `content-review-intake.md` | Content Reviewer | `<sessions>/<task-id>/content-reviewer/<session-id>/` |
 | `content-review-<date>-<sha7>.md` | Content Reviewer | `<vault>/05-Reports/` |

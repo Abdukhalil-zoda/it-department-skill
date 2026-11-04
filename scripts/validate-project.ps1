@@ -412,6 +412,37 @@ if (-not (Test-Path -LiteralPath $configPath)) {
             }
         }
 
+        # Security review hot spots (agents/security-reviewer.md) - optional {trigger_paths: {<trigger id>: [globs]}}
+        if ($configObj.PSObject.Properties['security_review']) {
+            $srv = $configObj.security_review
+            $triggerIds = @("auth", "schema", "pii-logging", "outbound-http", "rate-limits", "forwarded-headers", "secrets-config", "payments", "file-upload")
+            if ($srv -isnot [System.Management.Automation.PSCustomObject]) {
+                $failures += "Field 'security_review' must be an object."
+            } else {
+                foreach ($sk in $srv.PSObject.Properties) {
+                    if ($sk.Name -cne "trigger_paths") {
+                        $failures += "Unknown field 'security_review.$($sk.Name)'. Allowed: trigger_paths."
+                    }
+                }
+                if ($srv.PSObject.Properties['trigger_paths']) {
+                    $tps = $srv.trigger_paths
+                    if ($tps -isnot [System.Management.Automation.PSCustomObject]) {
+                        $failures += "Field 'security_review.trigger_paths' must be an object of trigger id -> array of globs."
+                    } else {
+                        foreach ($tp in $tps.PSObject.Properties) {
+                            if ($tp.Name -cnotin $triggerIds) {
+                                $failures += "Unknown trigger id 'security_review.trigger_paths.$($tp.Name)'. Allowed: $($triggerIds -join ', ')."
+                            }
+                            $globs = $tp.Value
+                            if ($globs -isnot [System.Array] -or @($globs | Where-Object { $_ -isnot [string] -or [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) {
+                                $failures += "Field 'security_review.trigger_paths.$($tp.Name)' must be an array of non-empty glob strings."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if ($failures.Count -eq 0) {
             Write-Host "    [PASS] .it-department/config.json is valid and strictly conforms to contract."
         }
@@ -459,6 +490,10 @@ if ($configObj -and $configObj.paths) {
     $decisionsLogPath = Join-Path $resolvedVaultDir "03-ADR/decisions-log.md"
     if (-not (Test-Path -LiteralPath $decisionsLogPath)) {
         Write-Host "    [WARN] Missing decisions journal at resolved vault path: $decisionsLogPath (re-run init-project to add it; row format: templates/decision-record.md)."
+    }
+    $modulesDir = Join-Path $resolvedVaultDir "07-Modules"
+    if (-not (Test-Path -LiteralPath $modulesDir)) {
+        Write-Host "    [WARN] Missing module knowledge map at resolved vault path: $modulesDir (re-run init-project to add it; card format: templates/module-card.md)."
     }
 
     # Validate Sessions and Worktrees directories
